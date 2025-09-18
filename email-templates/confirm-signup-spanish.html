@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirma tu cuenta en Manito</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #007AFF 0%, #0056D3 100%); padding: 40px 30px; text-align: center;">
+            <div style="display: inline-block; background-color: rgba(255, 255, 255, 0.1); border-radius: 50%; padding: 20px; margin-bottom: 20px;">
+                <div style="font-size: 40px;">🏠</div>
+            </div>
+            <h1 style="color: #ffffff; font-size: 28px; font-weight: 700; margin: 0; margin-bottom: 8px;">
+                ¡Bienvenido a Manito!
+            </h1>
+            <p style="color: rgba(255, 255, 255, 0.9); font-size: 16px; margin: 0; font-weight: 400;">
+                El marketplace de servicios para el hogar en Chile
+            </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+            <h2 style="color: #1a1a1a; font-size: 24px; font-weight: 600; margin: 0 0 20px 0; text-align: center;">
+                Confirma tu email para comenzar
+            </h2>
+
+            <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0; text-align: center;">
+                Hemos recibido tu solicitud para crear una cuenta en Manito. Para completar el proceso y acceder a los mejores profesionales para tu hogar, por favor confirma tu dirección de email.
+            </p>
+
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 40px 0;">
+                <a href="{{ .ConfirmationURL }}"
+                   style="display: inline-block; background: linear-gradient(135deg, #007AFF 0%, #0056D3 100%); color: #ffffff; text-decoration: none; padding: 16px 32px; border-radius: 12px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.4); transition: all 0.2s ease;">
+                    ✅ Confirmar mi Email
+                </a>
+            </div>
+
+            <p style="color: #718096; font-size: 14px; line-height: 1.5; margin: 30px 0 0 0; text-align: center;">
+                Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+                <span style="word-break: break-all; color: #007AFF;">{{ .ConfirmationURL }}</span>
+            </p>
+
+            <!-- Features Preview -->
+            <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #e2e8f0;">
+                <h3 style="color: #2d3748; font-size: 18px; font-weight: 600; margin: 0 0 20px 0; text-align: center;">
+                    ¿Qué puedes hacer en Manito?
+                </h3>
+
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                    <div style="display: flex; align-items: center; padding: 12px 0;">
+                        <div style="font-size: 24px; margin-right: 16px;">🔧</div>
+                        <div>
+                            <div style="font-weight: 600; color: #2d3748; font-size: 16px;">Encuentra profesionales confiables</div>
+                            <div style="color: #718096; font-size: 14px;">Electricistas, plomeros, jardineros y más</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; padding: 12px 0;">
+                        <div style="font-size: 24px; margin-right: 16px;">⭐</div>
+                        <div>
+                            <div style="font-weight: 600; color: #2d3748; font-size: 16px;">Revisa reseñas reales</div>
+                            <div style="color: #718096; font-size: 14px;">Comentarios de otros usuarios chilenos</div>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; align-items: center; padding: 12px 0;">
+                        <div style="font-size: 24px; margin-right: 16px;">💳</div>
+                        <div>
+                            <div style="font-weight: 600; color: #2d3748; font-size: 16px;">Pagos seguros</div>
+                            <div style="color: #718096; font-size: 14px;">Con garantía y protección</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+            <p style="color: #718096; font-size: 14px; margin: 0 0 16px 0;">
+                Este email fue enviado desde <strong>Manito</strong><br>
+                El marketplace de confianza para servicios del hogar en Chile
+            </p>
+
+            <div style="margin-top: 20px;">
+                <a href="mailto:soporte@manito.cl" style="color: #007AFF; text-decoration: none; font-size: 14px; margin: 0 16px;">
+                    📧 Soporte
+                </a>
+                <a href="https://manito.cl" style="color: #007AFF; text-decoration: none; font-size: 14px; margin: 0 16px;">
+                    🌐 Sitio Web
+                </a>
+            </div>
+
+            <p style="color: #a0aec0; font-size: 12px; margin: 20px 0 0 0; line-height: 1.4;">
+                Si no creaste una cuenta en Manito, puedes ignorar este email.<br>
+                Este enlace expira en 24 horas por seguridad.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

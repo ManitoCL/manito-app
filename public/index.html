@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manito</title>
+</head>
+<body>
+    <script>
+        // Check if this is an auth callback (has access_token in hash)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+            console.log('Auth tokens detected, redirecting to callback page...');
+            // Redirect to the proper callback page with the hash
+            window.location.href = '/auth/callback.html' + window.location.hash;
+        }
+    </script>
+
+    <!-- Default content for non-auth visits -->
+    <div style="font-family: system-ui; text-align: center; padding: 50px;">
+        <h1>Manito</h1>
+        <p>Home Services Marketplace</p>
+        <p><a href="exp://192.168.1.131:8081">Open Mobile App</a></p>
+    </div>
+</body>
+</html>

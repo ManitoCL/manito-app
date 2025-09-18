@@ -1,0 +1,34 @@
+¡Bienvenido a Manito! 🏠
+
+Hola,
+
+Hemos recibido tu solicitud para crear una cuenta en Manito, el marketplace de servicios para el hogar en Chile.
+
+Para completar el proceso y acceder a los mejores profesionales para tu hogar, por favor confirma tu dirección de email haciendo clic en el siguiente enlace:
+
+{{ .ConfirmationURL }}
+
+¿Qué puedes hacer en Manito?
+
+🔧 Encontrar profesionales confiables
+   Electricistas, plomeros, jardineros y más
+
+⭐ Revisar reseñas reales
+   Comentarios de otros usuarios chilenos
+
+💳 Pagos seguros
+   Con garantía y protección
+
+---
+
+Si tienes alguna pregunta, no dudes en contactarnos:
+📧 soporte@manito.cl
+🌐 https://manito.cl
+
+Este enlace expira en 24 horas por seguridad.
+Si no creaste una cuenta en Manito, puedes ignorar este email.
+
+¡Gracias por elegir Manito!
+
+El equipo de Manito
+Chile 🇨🇱
