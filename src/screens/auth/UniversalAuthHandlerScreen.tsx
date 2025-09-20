@@ -121,7 +121,7 @@ export const UniversalAuthHandlerScreen: React.FC<{
 
         // Navigate to sign in screen where verified users can log in
         setTimeout(() => {
-          navigation.replace('SignIn');
+          navigation.replace('Login');
         }, 2000);
         return;
       }
