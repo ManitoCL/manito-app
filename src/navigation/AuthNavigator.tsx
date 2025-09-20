@@ -1,86 +1,27 @@
+/**
+ * PHASE 2: Enterprise Auth Navigator (Unauthenticated State Only)
+ * Simplified navigator for unauthenticated users - no complex state logic
+ */
+
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import {
   EnterpriseLoginScreen,
   EnterpriseSignUpScreen,
-  EnterpriseEmailConfirmationScreen,
+  EmailVerificationPendingScreen,
   EmailConfirmedScreen,
+  UniversalAuthHandlerScreen,
 } from '../screens/auth';
 import { LandingScreen } from '../screens/landing';
 import { AuthStackParamList } from '../types';
-import { useAuth } from '../hooks/useEnterpriseAuth';
 
 const Stack = createStackNavigator<AuthStackParamList>();
 
 export const AuthNavigator: React.FC = () => {
-  const {
-    user,
-    isAuthenticated,
-    isEmailVerified,
-    shouldShowEmailVerification,
-    onboardingStep,
-    needsEmailVerification
-  } = useAuth();
+  console.log('🚀 Phase 2: AuthNavigator (unauthenticated state only)');
 
-  // Debug navigation state
-  console.log('🔍 AuthNavigator state:', {
-    hasUser: !!user,
-    userEmail: user?.email,
-    isAuthenticated,
-    isEmailVerified,
-    shouldShowEmailVerification,
-    onboardingStep,
-    needsEmailVerification
-  });
-
-  // Instagram/Meta pattern: Render different stacks based on auth state
-  if (shouldShowEmailVerification && user?.email) {
-    console.log('🏗️ AuthNavigator: Rendering EmailConfirmation stack');
-
-    return (
-      <Stack.Navigator
-        initialRouteName="EmailConfirmation"
-        screenOptions={{
-          headerShown: false,
-          cardStyle: { backgroundColor: '#F9FAFB' },
-        }}
-      >
-        <Stack.Screen
-          name="EmailConfirmation"
-          component={EnterpriseEmailConfirmationScreen}
-          initialParams={{
-            email: user.email,
-            userType: user.userType || 'customer',
-            isSignUp: true
-          }}
-        />
-        <Stack.Screen
-          name="EmailConfirmed"
-          component={EmailConfirmedScreen}
-        />
-        {/* Keep other screens available for back navigation */}
-        <Stack.Screen
-          name="Landing"
-          component={LandingScreen}
-        />
-        <Stack.Screen
-          name="Login"
-          component={EnterpriseLoginScreen}
-          options={{
-            title: 'Iniciar Sesión',
-            headerShown: true,
-            headerBackTitleVisible: false,
-          }}
-        />
-        <Stack.Screen
-          name="SignUp"
-          component={EnterpriseSignUpScreen}
-        />
-      </Stack.Navigator>
-    );
-  }
-
-  // Default auth stack
+  // PHASE 2 ENTERPRISE: Simple auth stack - no complex state logic
+  // All state management moved to AppNavigator 3-state pattern
   return (
     <Stack.Navigator
       initialRouteName="Landing"
@@ -92,6 +33,10 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="Landing"
         component={LandingScreen}
+        options={{
+          // ENTERPRISE: Landing is the entry point
+          gestureEnabled: false,
+        }}
       />
       <Stack.Screen
         name="Login"
@@ -105,14 +50,48 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen
         name="SignUp"
         component={EnterpriseSignUpScreen}
+        options={{
+          title: 'Crear Cuenta',
+          headerShown: true,
+          headerBackTitleVisible: false,
+        }}
       />
       <Stack.Screen
-        name="EmailConfirmation"
-        component={EnterpriseEmailConfirmationScreen}
+        name="EmailVerificationPending"
+        component={EmailVerificationPendingScreen}
+        options={{
+          title: 'Verificar Email',
+          headerShown: true,
+          headerBackTitleVisible: false,
+          headerLeft: () => null, // Prevent going back to signup
+          gestureEnabled: false,
+        }}
       />
       <Stack.Screen
         name="EmailConfirmed"
         component={EmailConfirmedScreen}
+        options={{
+          // ENTERPRISE: Email confirmed is a terminal state
+          headerLeft: () => null,
+          gestureEnabled: false,
+        }}
+      />
+      {/* ENTERPRISE: Device-agnostic auth verification handlers */}
+      <Stack.Screen
+        name="AuthVerified"
+        component={UniversalAuthHandlerScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="AuthCallback"
+        component={UniversalAuthHandlerScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false,
+        }}
       />
     </Stack.Navigator>
   );

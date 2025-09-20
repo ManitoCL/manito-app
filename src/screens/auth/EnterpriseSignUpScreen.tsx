@@ -15,18 +15,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
-import { useAppDispatch, useAppSelector } from '../../store';
-import {
-  signUp,
-  clearError,
-  resendVerificationEmail,
-  selectAuth,
-  selectAuthLoading,
-} from '../../store/auth/authSlice';
-// Temporarily removing RTK Query import due to subscription errors
-// import {
-//   useCheckEmailAvailabilityQuery,
-// } from '../../store/api/authApi';
+import { useEnterpriseAuth } from '../../hooks/useEnterpriseAuth';
 import { AutofillAwareInput } from '../../components/ui/AutofillAwareInput';
 import { RutInput } from '../../components/chilean/RutInput';
 import { SMSPhoneInput } from '../../components/chilean/PhoneInput';
@@ -39,7 +28,8 @@ interface SignUpFormData {
   email: string;
   password: string;
   confirmPassword: string;
-  fullName: string;
+  nombres: string;
+  apellidos: string;
   userType: 'customer' | 'provider';
   phone: string;
   // Provider-only fields
@@ -48,15 +38,14 @@ interface SignUpFormData {
 }
 
 export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-  const dispatch = useAppDispatch();
-  const { user, isEmailVerified, emailVerificationSent, error } = useAppSelector(selectAuth);
-  const isLoading = useAppSelector(selectAuthLoading);
+  const { isLoading, error, user, isEmailVerified } = useEnterpriseAuth();
 
   const [formData, setFormData] = useState<SignUpFormData>({
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: '',
+    nombres: '',
+    apellidos: '',
     userType: 'customer',
     phone: '',
     rut: '',
@@ -155,27 +144,24 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
 
   // Removed debug log that was running on every keystroke - moved to actual check function
 
-  // Clear error when component mounts and cleanup timeout on unmount
+  // Cleanup timeout on unmount
   useEffect(() => {
-    dispatch(clearError());
-
     return () => {
       // Cleanup timeout on unmount
       if (emailCheckTimeoutRef.current) {
         clearTimeout(emailCheckTimeoutRef.current);
       }
     };
-  }, [dispatch]);
+  }, []);
 
   // Auth state debug logging
   useEffect(() => {
     console.log('🔍 Auth state debug:', {
       user: !!user,
       isEmailVerified,
-      emailVerificationSent,
       userEmail: user?.email
     });
-  }, [user, isEmailVerified, emailVerificationSent]);
+  }, [user, isEmailVerified]);
 
   const validateForm = (): boolean => {
     const errors: Partial<SignUpFormData> = {};
@@ -192,11 +178,20 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
       console.warn('Email availability check failed:', emailCheckError);
     }
 
-    // Password validation
+    // Password validation (must match Supabase provider settings)
     if (!formData.password) {
       errors.password = 'Contraseña es requerida';
-    } else if (formData.password.length < 6) {
-      errors.password = 'Contraseña debe tener al menos 6 caracteres';
+    } else if (formData.password.length < 8) {
+      errors.password = 'Contraseña debe tener al menos 8 caracteres';
+    } else {
+      // Check complexity requirements (lowercase, uppercase, numbers)
+      const hasLowercase = /[a-z]/.test(formData.password);
+      const hasUppercase = /[A-Z]/.test(formData.password);
+      const hasNumbers = /\d/.test(formData.password);
+
+      if (!hasLowercase || !hasUppercase || !hasNumbers) {
+        errors.password = 'Contraseña debe tener minúsculas, mayúsculas y números';
+      }
     }
 
     // Confirm password validation
@@ -204,9 +199,17 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
       errors.confirmPassword = 'Las contraseñas no coinciden';
     }
 
-    // Full name validation
-    if (!formData.fullName.trim()) {
-      errors.fullName = 'Nombre completo es requerido';
+    // Chilean name validation
+    if (!formData.nombres.trim()) {
+      errors.nombres = 'Nombres es requerido';
+    } else if (formData.nombres.trim().length < 2) {
+      errors.nombres = 'Nombres debe tener al menos 2 caracteres';
+    }
+
+    if (!formData.apellidos.trim()) {
+      errors.apellidos = 'Apellidos es requerido';
+    } else if (formData.apellidos.trim().length < 2) {
+      errors.apellidos = 'Apellidos debe tener al menos 2 caracteres';
     }
 
     // Phone validation (required for all users per user stories)
@@ -242,14 +245,16 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
     }
 
     try {
-      console.log('🚀 Starting Redux-based signup...');
+      console.log('🚀 Starting enterprise signup via Edge Function...');
 
       const signUpData: any = {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        fullName: formData.fullName.trim(),
+        fullName: `${formData.nombres.trim()} ${formData.apellidos.trim()}`,
+        nombres: formData.nombres.trim(),
+        apellidos: formData.apellidos.trim(),
         userType: formData.userType,
-        phone: formData.phone.trim(),
+        phoneNumber: formData.phone.trim().replace(/\s/g, ''), // Remove all spaces
       };
 
       // Add provider-specific fields only for maestros
@@ -258,22 +263,53 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
         signUpData.comunaCode = formData.comunaCode.trim();
       }
 
-      const result = await dispatch(signUp(signUpData)).unwrap();
-
-      console.log('✅ Signup completed via Redux:', result);
-      console.log('🔍 Auth state immediately after signup:', {
-        user: !!result.user,
-        isEmailVerified: result.isEmailVerified,
-        emailVerificationSent: result.emailVerificationSent,
-        userEmail: result.user?.email
+      console.log('📡 Calling enterprise-signup edge function...', {
+        email: signUpData.email,
+        userType: signUpData.userType,
+        hasPhoneNumber: !!signUpData.phoneNumber,
       });
 
-      // Navigation will be handled automatically by AuthNavigator based on auth state
-      console.log('📧 AuthNavigator will handle email confirmation navigation');
+      // ENTERPRISE PATTERN: Call edge function instead of Redux
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/enterprise-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify(signUpData),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('❌ Enterprise signup failed:', result);
+
+        // Log detailed validation errors for debugging
+        if (result.details && Array.isArray(result.details)) {
+          console.error('❌ Validation errors:', result.details);
+          throw new Error(`Validation failed: ${result.details.join(', ')}`);
+        }
+
+        throw new Error(result.error || 'Signup failed');
+      }
+
+      console.log('✅ Enterprise signup completed:', result);
+
+      // ENTERPRISE UX: Navigate directly to pending verification screen
+      // This provides clear guidance instead of leaving user on signup form
+      navigation.navigate('EmailVerificationPending', {
+        email: formData.email.trim().toLowerCase(),
+        userType: formData.userType,
+      });
+
+      console.log('📧 Navigated to EmailVerificationPendingScreen for enterprise UX');
 
     } catch (error) {
-      console.error('❌ Redux signup error:', error);
-      Alert.alert('Error', error as string);
+      console.error('❌ Enterprise signup error:', error);
+      Alert.alert('Error', error instanceof Error ? error.message : 'Error al crear la cuenta');
     }
   };
 
@@ -281,7 +317,28 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
     if (!formData.email) return;
 
     try {
-      await dispatch(resendVerificationEmail(formData.email)).unwrap();
+      // Call edge function for resend
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/enterprise-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          email: formData.email.trim().toLowerCase(),
+          resend: true,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to resend email');
+      }
+
       Alert.alert('Email Enviado', 'Hemos reenviado el enlace de verificación.');
     } catch (error) {
       Alert.alert('Error', error as string);
@@ -379,15 +436,26 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
             </View>
           </View>
 
-          {/* Full Name */}
+          {/* Chilean Names */}
           <AutofillAwareInput
-            label="Nombre Completo"
-            value={formData.fullName}
-            onChangeText={(value) => handleInputChange('fullName', value)}
-            error={formErrors.fullName}
-            textContentType="name"
-            autoComplete="name"
-            placeholder="Ej: Juan Pérez González"
+            label="Nombres"
+            value={formData.nombres}
+            onChangeText={(value) => handleInputChange('nombres', value)}
+            error={formErrors.nombres}
+            textContentType="givenName"
+            autoComplete="given-name"
+            placeholder="Ej: María José"
+            required
+          />
+
+          <AutofillAwareInput
+            label="Apellidos"
+            value={formData.apellidos}
+            onChangeText={(value) => handleInputChange('apellidos', value)}
+            error={formErrors.apellidos}
+            textContentType="familyName"
+            autoComplete="family-name"
+            placeholder="Ej: González Rodríguez"
             required
           />
 
@@ -467,7 +535,7 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
             textContentType="newPassword"
             autoComplete="new-password"
             secureTextEntry
-            placeholder="Mínimo 6 caracteres"
+            placeholder="8+ caracteres, minúsculas, mayúsculas y números"
             required
           />
 

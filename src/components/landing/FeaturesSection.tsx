@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   },
   featureTitle: {
     fontSize: typography.fontSize.lg.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[3],
     textAlign: 'center',
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: typography.fontSize.lg.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[2],
     textAlign: 'center',

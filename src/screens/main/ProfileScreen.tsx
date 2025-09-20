@@ -9,6 +9,11 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
+import { MainStackParamList } from '../../types';
+
+type ProfileScreenNavigationProp = StackNavigationProp<MainStackParamList>;
 import { useAuth } from '../../hooks/useEnterpriseAuth';
 import { EnterpriseCard, Button, Input } from '../../components/ui';
 import { colors, spacing, typography, shadows, borderRadius } from '../../design/tokens';
@@ -28,6 +33,7 @@ const PAYMENT_METHODS = [
 ];
 
 export const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { user, signOut, refreshUser } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -83,8 +89,41 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleQuickAction = (action: string) => {
-    console.log('Quick action:', action);
-    // Navigation logic would go here
+    switch (action) {
+      case 'profile-management':
+        navigation.navigate('ProfileManagement');
+        break;
+      case 'detailed-profile':
+        if (user?.userType === 'provider') {
+          navigation.navigate('ProviderProfile');
+        } else {
+          navigation.navigate('CustomerProfile');
+        }
+        break;
+      case 'verification':
+        if (user?.userType === 'provider') {
+          navigation.navigate('ProviderVerification');
+        }
+        break;
+      case 'bookings':
+        // TODO: Navigate to bookings screen
+        console.log('Navigate to bookings');
+        break;
+      case 'payments':
+        // TODO: Navigate to payments screen
+        console.log('Navigate to payments');
+        break;
+      case 'favorites':
+        // TODO: Navigate to favorites screen
+        console.log('Navigate to favorites');
+        break;
+      case 'support':
+        // TODO: Navigate to support screen
+        console.log('Navigate to support');
+        break;
+      default:
+        console.log('Unknown quick action:', action);
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -183,6 +222,32 @@ export const ProfileScreen: React.FC = () => {
               <Text style={styles.quickActionIcon}>💬</Text>
               <Text style={styles.quickActionText}>Soporte</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              onPress={() => handleQuickAction('detailed-profile')}
+            >
+              <Text style={styles.quickActionIcon}>👤</Text>
+              <Text style={styles.quickActionText}>Mi Perfil Completo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionCard}
+              onPress={() => handleQuickAction('profile-management')}
+            >
+              <Text style={styles.quickActionIcon}>⚙️</Text>
+              <Text style={styles.quickActionText}>Gestión</Text>
+            </TouchableOpacity>
+
+            {user?.userType === 'provider' && (
+              <TouchableOpacity
+                style={styles.quickActionCard}
+                onPress={() => handleQuickAction('verification')}
+              >
+                <Text style={styles.quickActionIcon}>✅</Text>
+                <Text style={styles.quickActionText}>Verificación</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 

@@ -28,11 +28,13 @@ export interface InputProps {
   textContentType?: 'none' | 'URL' | 'addressCity' | 'addressCityAndState' | 'addressState' | 'countryName' | 'creditCardNumber' | 'emailAddress' | 'familyName' | 'fullStreetAddress' | 'givenName' | 'jobTitle' | 'location' | 'middleName' | 'name' | 'namePrefix' | 'nameSuffix' | 'nickname' | 'organizationName' | 'postalCode' | 'streetAddressLine1' | 'streetAddressLine2' | 'sublocality' | 'telephoneNumber' | 'username' | 'password' | 'newPassword' | 'oneTimeCode';
   returnKeyType?: 'done' | 'go' | 'next' | 'search' | 'send';
   onSubmitEditing?: () => void;
+  onBlur?: () => void; // Add onBlur for Chilean validation
   blurOnSubmit?: boolean;
   ref?: React.RefObject<TextInput>;
   editable?: boolean;
   multiline?: boolean;
   numberOfLines?: number;
+  maxLength?: number; // Add maxLength for Chilean validation
   style?: ViewStyle;
   inputStyle?: TextStyle;
   leftIcon?: React.ReactNode;
@@ -74,10 +76,12 @@ export const Input: React.FC<InputProps> = ({
   textContentType,
   returnKeyType,
   onSubmitEditing,
+  onBlur,
   blurOnSubmit = true,
   editable = true,
   multiline = false,
   numberOfLines = 1,
+  maxLength,
   style,
   inputStyle,
   leftIcon,
@@ -187,8 +191,9 @@ export const Input: React.FC<InputProps> = ({
           editable={editable}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          maxLength={maxLength}
           onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
+          onBlur={() => { setIsFocused(false); if (onBlur) onBlur(); }}
           enablesReturnKeyAutomatically={true}
           importantForAutofill={importantForAutofill || "yes"}
         />

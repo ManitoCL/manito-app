@@ -22,7 +22,37 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    // ENTERPRISE DEBUGGING: Enhanced error capture for development
+    console.error('🚨 ErrorBoundary caught an error:', {
+      message: error?.message || 'Unknown error',
+      name: error?.name || 'Unknown error type',
+      stack: error?.stack || 'No stack trace',
+      toString: error?.toString() || 'Cannot stringify error',
+      componentStack: errorInfo?.componentStack || 'No component stack',
+      errorBoundaryStack: errorInfo?.errorBoundaryStack || 'No error boundary stack',
+      rawError: error,
+      rawErrorInfo: errorInfo,
+    });
+
+    // Additional debugging for non-standard error objects
+    if (error && typeof error === 'object') {
+      const keys = Object.keys(error);
+      const values = Object.values(error);
+      console.error('🔍 Error object keys:', keys);
+      console.error('🔍 Error object values:', values);
+
+      // Show each key-value pair explicitly
+      keys.forEach((key, index) => {
+        console.error(`🔍 Error[${key}]:`, values[index]);
+      });
+
+      // Try different ways to extract error information
+      console.error('🔍 error.message:', (error as any)?.message);
+      console.error('🔍 error.error:', (error as any)?.error);
+      console.error('🔍 error.status:', (error as any)?.status);
+      console.error('🔍 error.data:', (error as any)?.data);
+      console.error('🔍 JSON.stringify(error):', JSON.stringify(error, null, 2));
+    }
   }
 
   handleReset = () => {
@@ -35,9 +65,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
         <View style={styles.container}>
           <View style={styles.content}>
             <Text style={styles.emoji}>=</Text>
-            <Text style={styles.title}>�Oops! Algo sali� mal</Text>
+            <Text style={styles.title}>�Oops! Algo sali� mal</Text>
             <Text style={styles.message}>
-              Ocurri� un error inesperado. Por favor intenta nuevamente.
+              Ocurri� un error inesperado. Por favor intenta nuevamente.
             </Text>
 
             {__DEV__ && this.state.error && (

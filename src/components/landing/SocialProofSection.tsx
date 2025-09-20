@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: typography.fontSize.lg.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.primary[600],
   },
   testimonialUserInfo: {
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   },
   testimonialName: {
     fontSize: typography.fontSize.base.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[1],
   },
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   },
   serviceTagText: {
     fontSize: typography.fontSize.xs.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.primary[700],
   },
 });

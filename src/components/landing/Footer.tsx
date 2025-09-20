@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
   },
   socialTitle: {
     fontSize: typography.fontSize.base.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.inverse,
     marginBottom: spacing[3],
   },
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: typography.fontSize.base.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.inverse,
     marginBottom: spacing[4],
   },
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   },
   complianceTitle: {
     fontSize: typography.fontSize.base.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.inverse,
     marginLeft: spacing[2],
   },
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: typography.fontSize.xs.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.neutral[300],
   },
   complianceText: {

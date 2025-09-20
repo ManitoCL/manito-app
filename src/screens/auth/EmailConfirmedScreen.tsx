@@ -28,16 +28,14 @@ export const EmailConfirmedScreen: React.FC<EmailConfirmedScreenProps> = ({
   navigation,
 }) => {
   useEffect(() => {
-    // Auto-redirect to main app after 3 seconds
-    const timer = setTimeout(() => {
-      navigation.replace('Main');
-    }, 3000);
-
-    return () => clearTimeout(timer);
-  }, [navigation]);
+    // Enterprise Auth: AppNavigator will handle navigation automatically based on auth state
+    // No manual navigation needed - middleware manages the flow
+    console.log('✅ Email confirmed - AppNavigator will handle transition to authenticated state');
+  }, []);
 
   const handleContinue = () => {
-    navigation.replace('Main');
+    // Enterprise Auth: AppNavigator handles navigation automatically
+    console.log('✅ Continue pressed - AppNavigator will transition based on auth state');
   };
 
   return (

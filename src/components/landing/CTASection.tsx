@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   },
   urgencyText: {
     fontSize: typography.fontSize.sm.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.warning[700],
     marginLeft: spacing[2],
   },

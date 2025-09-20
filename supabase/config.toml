@@ -85,18 +85,18 @@ double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
 enable_confirmations = true
 
-# Email templates for Enterprise Redux workflow
-[auth.email.template.confirmation]
-subject = "Confirma tu email - Manito"
-content_path = "../supabase/templates/confirm-email.html"
+# Email templates for Enterprise Redux workflow - Commented out for edge function deployment
+# [auth.email.template.confirmation]
+# subject = "Confirma tu email - Manito"
+# content_path = "../supabase/templates/confirm-email.html"
 
-[auth.email.template.recovery]
-subject = "Recupera tu contraseña - Manito"
-content_path = "../supabase/templates/recovery.html"
+# [auth.email.template.recovery]
+# subject = "Recupera tu contraseña - Manito"
+# content_path = "../supabase/templates/recovery.html"
 
-[auth.email.template.magic_link]
-subject = "Tu enlace de acceso - Manito"
-content_path = "../supabase/templates/magic-link.html"
+# [auth.email.template.magic_link]
+# subject = "Tu enlace de acceso - Manito"
+# content_path = "../supabase/templates/magic-link.html"
 
 [auth.sms]
 # Allow/disallow new user signups via SMS to your project.

@@ -198,7 +198,7 @@ const styles = StyleSheet.create({
   // Text styles
   text: {
     fontFamily: typography.fontFamily.sans[0],
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     textAlign: 'center',
   },
   textSm: {

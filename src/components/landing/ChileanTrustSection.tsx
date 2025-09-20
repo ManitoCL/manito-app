@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   },
   partnershipName: {
     fontSize: typography.fontSize.lg.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[2],
     textAlign: 'center',
@@ -344,7 +344,7 @@ const styles = StyleSheet.create({
   },
   complianceTitle: {
     fontSize: typography.fontSize.base.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[1],
   },
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   },
   paymentMethodName: {
     fontSize: typography.fontSize.sm.size,
-    fontWeight: typography.fontWeight.semibold,
+    fontWeight: "600",
     color: colors.text.primary,
     marginBottom: spacing[1],
     textAlign: 'center',

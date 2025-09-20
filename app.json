@@ -18,6 +18,8 @@
       "bundleIdentifier": "cl.manito.app",
       "associatedDomains": [
         "applinks:auth.manito.cl",
+        "applinks:app.manito.cl",
+        "applinks:auth.manito.cl",
         "applinks:app.manito.cl"
       ],
       "infoPlist": {
@@ -27,8 +29,15 @@
             "CFBundleURLSchemes": [
               "manito"
             ]
+          },
+          {
+            "CFBundleURLName": "manito-auth",
+            "CFBundleURLSchemes": [
+              "manito"
+            ]
           }
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {

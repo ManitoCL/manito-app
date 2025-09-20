@@ -315,6 +315,7 @@ export type NotificationStatus = 'pending' | 'sent' | 'delivered' | 'failed' | '
 // Navigation types
 export type RootStackParamList = {
   Auth: undefined;
+  ProfileSetup: undefined;
   Main: undefined;
 };
 
@@ -323,6 +324,10 @@ export type AuthStackParamList = {
   Login: undefined;
   UserTypeSelection: undefined;
   SignUp: { userType: UserType };
+  EmailVerificationPending: {
+    email: string;
+    userType: UserType;
+  };
   EmailConfirmation: {
     email: string;
     userType: UserType;
@@ -330,11 +335,45 @@ export type AuthStackParamList = {
     password?: string;
   };
   EmailConfirmed: undefined;
+  // META/REDDIT STANDARD: Universal auth verification routes
+  AuthVerified: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: string;
+    token_type?: string;
+    auth_method?: string;
+    flow_type?: string;
+    verified?: string;
+    token_hash?: string;
+    type?: string;
+  };
+  AuthCallback: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: string;
+    token_type?: string;
+    auth_method?: string;
+    flow_type?: string;
+    verified?: string;
+    token_hash?: string;
+    type?: string;
+  };
 };
 
 export type MainStackParamList = {
   Home: undefined;
   Profile: undefined;
+  CustomerProfile: undefined;
+  MainTabs: undefined;
+  ProviderProfile: undefined;
+  ProfileManagement: undefined;
+  ProviderVerification: undefined;
+};
+
+export type ProfileSetupStackParamList = {
+  // Removed: EmailVerificationPending (legacy polling screen, handled by deep link now)
+  OnboardingFlow: undefined;
+  ProfileCompletion: undefined;
 };
 
 // Americas country codes (excluding Caribbean as requested)
