@@ -30,7 +30,7 @@ export const EmailVerificationPendingScreen: React.FC = () => {
   const route = useRoute();
   const { email, userType } = route.params as RouteParams;
 
-  const { authStatus, isLoading, checkVerificationStatus } = useEnterpriseAuth();
+  const { authStatus, isLoading, refreshAuth } = useEnterpriseAuth();
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [pollingCount, setPollingCount] = useState(0);
@@ -51,11 +51,12 @@ export const EmailVerificationPendingScreen: React.FC = () => {
     // Poll every 3 seconds for verification status
     const pollInterval = setInterval(async () => {
       setPollingCount(prev => prev + 1);
-      await checkVerificationStatus();
+      console.log(`🔄 Enterprise: Polling verification (attempt ${pollingCount + 1})`);
+      await refreshAuth();
     }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, [authStatus, checkVerificationStatus]);
+  }, [authStatus, refreshAuth, pollingCount]);
 
   // Resend cooldown timer
   useEffect(() => {
