@@ -15,7 +15,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { NavigationProp } from '@react-navigation/native';
+import type { NavigationProp, RouteProp } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import { colors, typography, spacing, borderRadius, shadows } from '../../design/tokens';
 import { useEnterpriseAuth, useAuthActions } from '../../hooks/useEnterpriseAuth';
 import { AutofillAwareInput } from '../../components/ui/AutofillAwareInput';
@@ -25,17 +26,23 @@ interface EnterpriseLoginScreenProps {
   navigation: NavigationProp<AuthStackParamList, 'Login'>;
 }
 
+type LoginScreenRouteProp = RouteProp<AuthStackParamList, 'Login'>;
+
 interface LoginFormData {
   email: string;
   password: string;
 }
 
 export const EnterpriseLoginScreen: React.FC<EnterpriseLoginScreenProps> = ({ navigation }) => {
+  const route = useRoute<LoginScreenRouteProp>();
   const { isLoading, error, isAuthenticated } = useEnterpriseAuth();
   const { signIn, clearError } = useAuthActions();
 
+  // Get email from navigation params (passed from verification screen)
+  const prefilledEmail = route.params?.email || '';
+
   const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
+    email: prefilledEmail,
     password: '',
   });
 

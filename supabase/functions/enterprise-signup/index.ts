@@ -16,10 +16,11 @@ const corsHeaders = {
 
 // Enterprise configuration
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJseHN5dGxlc29xYmNnYm5od2hxIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NzcxNjgzNiwiZXhwIjoyMDczMjkyODM2fQ.5mzwLCo3wk6-3gwf6BWRXXVa9j-JlhRH9XDOf5cghes'
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const SENDGRID_API_KEY = Deno.env.get('SENDGRID_API_KEY')!
 const SENDGRID_TEMPLATE_VERIFICATION = Deno.env.get('SENDGRID_TEMPLATE_VERIFICATION')!
 const FROM_EMAIL = Deno.env.get('FROM_EMAIL') || 'noreply@manito.cl'
+const MIXPANEL_TOKEN = Deno.env.get('MIXPANEL_TOKEN') || ''
 
 // Initialize Supabase Admin client
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -181,6 +182,49 @@ async function sendVerificationEmail(
   }
 }
 
+// Enterprise analytics tracking
+async function trackAnalyticsEvent(
+  event: string,
+  properties: Record<string, any>,
+  userId?: string
+): Promise<void> {
+  try {
+    if (!MIXPANEL_TOKEN) {
+      console.log('🔬 Analytics: Skipping (no token configured)');
+      return;
+    }
+
+    const eventData = {
+      event,
+      properties: {
+        ...properties,
+        timestamp: new Date().toISOString(),
+        platform: 'server',
+        source: 'edge_function',
+        token: MIXPANEL_TOKEN,
+        distinct_id: userId || properties.email || 'anonymous',
+      }
+    };
+
+    const response = await fetch('https://api.mixpanel.com/track', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([eventData]),
+    });
+
+    if (!response.ok) {
+      console.error('❌ Analytics: Failed to track event:', event);
+    } else {
+      console.log('📊 Analytics: Tracked server event:', event);
+    }
+
+  } catch (error) {
+    console.error('❌ Analytics: Exception tracking event:', error);
+  }
+}
+
 // Rate limiting (enterprise pattern)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 
@@ -241,7 +285,12 @@ serve(async (req) => {
       )
     }
 
-    const { email, password, fullName, nombres, apellidos, userType, phoneNumber, resend }: SignupRequest = requestData
+    let { email, password, fullName, nombres, apellidos, userType, phoneNumber, resend }: SignupRequest = requestData
+
+    // CRITICAL FIX: Use cleaned phone number after validation
+    if (phoneNumber) {
+      phoneNumber = phoneNumber.replace(/\s/g, '') // Remove spaces like validation does
+    }
 
     // Handle resend verification email requests
     if (resend) {
@@ -307,6 +356,15 @@ serve(async (req) => {
         }
 
         console.log('✅ Verification email resent successfully to:', email)
+
+        // Analytics: Track server-side email resend
+        await trackAnalyticsEvent('verification_email_resent_server', {
+          email: email.toLowerCase().trim(),
+          email_domain: email.split('@')[1],
+          user_type: userType,
+          source: 'enterprise_signup_resend',
+        })
+
         return new Response(
           JSON.stringify({
             success: true,
@@ -348,7 +406,7 @@ serve(async (req) => {
         nombres: nombres?.trim() || null,
         apellidos: apellidos?.trim() || null,
         user_type: userType,
-        phone_number: phoneNumber?.trim(),
+        phone_number: phoneNumber || null,
         display_name: fullName.trim(), // Full name for display
         first_name: nombres?.trim().split(' ')[0] || fullName.trim().split(' ')[0], // For greetings
         onboarding_completed: false,
@@ -372,11 +430,16 @@ serve(async (req) => {
     }
 
     const user = userData.user
-    console.log('✅ Enterprise: User created successfully', { userId: user.id })
+    console.log('✅ Enterprise: User created successfully', {
+      userId: user.id,
+      email: user.email,
+      userMetadata: user.user_metadata
+    })
 
     // ENTERPRISE FALLBACK: Manual profile creation (triggers may not be active)
     try {
       console.log('🔄 Enterprise: Creating profile fallback for user:', user.id)
+      console.log('🐛 Debug: Full user data from auth creation:', JSON.stringify(user, null, 2))
 
       const { data: existingProfile, error: checkError } = await supabase
         .from('users')
@@ -384,49 +447,65 @@ serve(async (req) => {
         .eq('id', user.id)
         .single()
 
+      console.log('🐛 Debug: Profile check result:', { checkError, existingProfile });
+
       if (checkError && checkError.code === 'PGRST116') {
         // Profile doesn't exist, create it manually
+        console.log('📝 Creating manual profile for user:', user.id);
+
+        const profileData = {
+          id: user.id,
+          email: user.email!,
+          full_name: fullName.trim(),
+          user_type: userType,
+          phone_number: phoneNumber || null,
+          display_name: fullName.trim(),
+          is_verified: false,
+          email_verified_at: null,
+          onboarding_completed: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_seen_at: new Date().toISOString(),
+          // Chilean fields
+          nombres: nombres?.trim() || null,
+          apellidos: apellidos?.trim() || null,
+        };
+
+        console.log('🐛 Debug: Profile data to insert:', JSON.stringify(profileData, null, 2));
+
         const { error: profileError } = await supabase
           .from('users')
-          .insert({
-            id: user.id,
-            email: user.email!,
-            full_name: fullName.trim(),
-            user_type: userType,
-            phone_number: phoneNumber?.trim(),
-            display_name: fullName.trim(),
-            is_verified: false,
-            email_verified_at: null,
-            onboarding_completed: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            last_seen_at: new Date().toISOString(),
-            // Chilean fields
-            nombres: nombres?.trim() || null,
-            apellidos: apellidos?.trim() || null,
-          })
+          .insert(profileData)
 
         if (profileError) {
           console.error('❌ Enterprise: Manual profile creation failed:', profileError)
+          console.error('🐛 Debug: Profile error details:', JSON.stringify(profileError, null, 2))
           // Log but don't fail - user creation succeeded
         } else {
           console.log('✅ Enterprise: Manual profile created successfully')
 
           // Create provider profile if needed
           if (userType === 'provider') {
+            console.log('👨‍💼 Creating provider profile for user:', user.id);
+
+            const providerData = {
+              user_id: user.id,
+              business_name: null,
+              description: 'Proveedor de servicios profesionales en Chile',
+              verification_status: 'pending',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+
+            console.log('🐛 Debug: Provider data to insert:', JSON.stringify(providerData, null, 2));
+
             const { error: providerError } = await supabase
               .from('provider_profiles')
-              .insert({
-                user_id: user.id,
-                business_name: null,
-                description: 'Proveedor de servicios profesionales en Chile',
-                verification_status: 'pending',
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              })
+              .insert(providerData)
 
             if (providerError) {
               console.error('❌ Enterprise: Provider profile creation failed:', providerError)
+              console.error('🐛 Debug: Provider error details:', JSON.stringify(providerError, null, 2))
             } else {
               console.log('✅ Enterprise: Provider profile created successfully')
             }
@@ -505,6 +584,15 @@ serve(async (req) => {
       email: user.email,
       userType,
     })
+
+    // Analytics: Track server-side signup success
+    await trackAnalyticsEvent('signup_completed_server', {
+      user_id: user.id,
+      email: user.email,
+      user_type: userType,
+      email_domain: user.email?.split('@')[1],
+      source: 'enterprise_signup_edge_function',
+    }, user.id)
 
     return new Response(
       JSON.stringify({

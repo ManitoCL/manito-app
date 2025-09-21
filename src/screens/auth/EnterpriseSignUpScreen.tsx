@@ -23,6 +23,7 @@ import { ComunaSelector } from '../../components/chilean/AddressInput';
 import { validateRut, RutValidationResult } from '../../utils/chilean/rutValidation';
 import { validatePhoneByContext, PhoneValidationResult } from '../../utils/chilean/phoneValidation';
 import { supabase } from '../../services/supabase';
+import { analytics } from '../../services/analytics';
 
 interface SignUpFormData {
   email: string;
@@ -54,6 +55,7 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
 
   const [formErrors, setFormErrors] = useState<Partial<SignUpFormData>>({});
   const [showEmailCheck, setShowEmailCheck] = useState(false);
+  const [isSigningUp, setIsSigningUp] = useState(false);
   const [rutValidation, setRutValidation] = useState<RutValidationResult>({ isValid: false });
   const [phoneValidation, setPhoneValidation] = useState<PhoneValidationResult>({ isValid: false });
 
@@ -132,6 +134,9 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
       setEmailAvailability(result);
       console.log('✅ Email check completed, total time:', Date.now() - startTime, 'ms');
 
+      // Analytics: Track email availability check
+      analytics.trackEmailAvailabilityChecked(normalizedEmail, result.available, Date.now() - startTime);
+
     } catch (error) {
       console.error('❌ Email check error:', error);
       setEmailCheckError('Failed to check email availability');
@@ -162,6 +167,11 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
       userEmail: user?.email
     });
   }, [user, isEmailVerified]);
+
+  // Analytics: Track signup flow started
+  useEffect(() => {
+    analytics.trackSignupStarted(formData.userType);
+  }, []); // Only track once on mount
 
   const validateForm = (): boolean => {
     const errors: Partial<SignUpFormData> = {};
@@ -244,6 +254,8 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
       return;
     }
 
+    setIsSigningUp(true);
+
     try {
       console.log('🚀 Starting enterprise signup via Edge Function...');
 
@@ -298,6 +310,9 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
 
       console.log('✅ Enterprise signup completed:', result);
 
+      // Analytics: Track verification email sent
+      analytics.trackVerificationEmailSent(formData.email.trim().toLowerCase(), formData.userType);
+
       // ENTERPRISE UX: Navigate directly to pending verification screen
       // This provides clear guidance instead of leaving user on signup form
       navigation.navigate('EmailVerificationPending', {
@@ -310,6 +325,8 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
     } catch (error) {
       console.error('❌ Enterprise signup error:', error);
       Alert.alert('Error', error instanceof Error ? error.message : 'Error al crear la cuenta');
+    } finally {
+      setIsSigningUp(false);
     }
   };
 
@@ -348,6 +365,11 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
   const handleInputChange = (field: keyof SignUpFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
 
+    // Analytics: Track user type selection
+    if (field === 'userType') {
+      analytics.trackSignupStarted(value as 'customer' | 'provider');
+    }
+
     // Clear field error when user starts typing
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
@@ -381,7 +403,7 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
     }
   };
 
-  const isSignUpDisabled = isLoading || (checkingEmail && !emailCheckError) || (emailAvailability && !emailAvailability.available);
+  const isSignUpDisabled = isSigningUp || isLoading || (checkingEmail && !emailCheckError) || (emailAvailability && !emailAvailability.available);
 
   return (
     <KeyboardAvoidingView
@@ -559,7 +581,7 @@ export const EnterpriseSignUpScreen: React.FC<{ navigation: any }> = ({ navigati
             disabled={isSignUpDisabled}
           >
             <Text style={styles.signUpButtonText}>
-              {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
+              {isSigningUp ? 'Creando cuenta...' : isLoading ? 'Cargando...' : 'Crear Cuenta'}
             </Text>
           </TouchableOpacity>
 

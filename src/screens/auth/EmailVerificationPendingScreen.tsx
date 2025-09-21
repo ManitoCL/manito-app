@@ -19,6 +19,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useEnterpriseAuth } from '../../hooks/useEnterpriseAuth';
 import { Button } from '../../components/ui';
+import { analytics } from '../../services/analytics';
 
 interface RouteParams {
   email: string;
@@ -30,33 +31,65 @@ export const EmailVerificationPendingScreen: React.FC = () => {
   const route = useRoute();
   const { email, userType } = route.params as RouteParams;
 
-  const { authStatus, isLoading, refreshAuth } = useEnterpriseAuth();
+  const { authStatus, isLoading, verificationDetected, startVerificationPolling, stopVerificationPolling } = useEnterpriseAuth();
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-  const [pollingCount, setPollingCount] = useState(0);
+  const [isPolling, setIsPolling] = useState(true);
 
-  // Real-time verification polling
+  // Handle verification detection
   useEffect(() => {
-    if (authStatus === 'authenticated_pending_profile' || authStatus === 'authenticated_ready') {
-      // ✅ Verified! Auto-redirect
+    if (verificationDetected) {
+      // Analytics: Track verification completed
+      analytics.trackVerificationCompleted(email, 0); // TODO: Calculate actual time
+
+      // ✅ Verification detected! Show sign-in prompt
       Alert.alert(
         '¡Correo verificado!',
-        'Tu cuenta ha sido verificada exitosamente. Redirigiéndote...',
+        'Tu cuenta ha sido verificada exitosamente. Ahora debes iniciar sesión con tu contraseña para acceder a la app.',
+        [
+          {
+            text: 'Iniciar Sesión',
+            onPress: () => {
+              stopVerificationPolling();
+              setIsPolling(false);
+              // Navigate to sign-in screen with email pre-filled
+              navigation.navigate('Login' as never, { email } as never);
+            }
+          }
+        ]
+      );
+      return;
+    }
+  }, [verificationDetected, email, navigation, stopVerificationPolling]);
+
+  // Handle authenticated state
+  useEffect(() => {
+    if (authStatus === 'authenticated_pending_profile' || authStatus === 'authenticated_ready') {
+      // ✅ User is signed in! Auto-redirect
+      Alert.alert(
+        '¡Bienvenido!',
+        'Has iniciado sesión exitosamente. Redirigiéndote...',
         [{ text: 'Continuar', onPress: () => {} }]
       );
       // Navigation will be handled by AppNavigator based on authStatus
       return;
     }
+  }, [authStatus]);
 
-    // Poll every 3 seconds for verification status
-    const pollInterval = setInterval(async () => {
-      setPollingCount(prev => prev + 1);
-      console.log(`🔄 Enterprise: Polling verification (attempt ${pollingCount + 1})`);
-      await refreshAuth();
-    }, 3000);
+  // Start verification polling on mount
+  useEffect(() => {
+    console.log('🚀 Starting device-agnostic verification polling for:', email);
 
-    return () => clearInterval(pollInterval);
-  }, [authStatus, refreshAuth, pollingCount]);
+    // Analytics: Track verification polling started
+    analytics.trackVerificationPollingStarted(email);
+
+    startVerificationPolling(email);
+
+    // Cleanup on unmount
+    return () => {
+      stopVerificationPolling();
+    };
+  }, [email, startVerificationPolling, stopVerificationPolling]);
 
   // Resend cooldown timer
   useEffect(() => {
@@ -86,9 +119,23 @@ export const EmailVerificationPendingScreen: React.FC = () => {
         }),
       });
 
+      // Debug logging for troubleshooting
+      console.log('📧 Resend response status:', response.status);
+      console.log('📧 Resend response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Resend failed - Response:', errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const result = await response.json();
+      console.log('📧 Resend result:', result);
 
       if (result.success) {
+        // Analytics: Track email resent
+        analytics.trackVerificationEmailResent(email, 1); // TODO: Track actual attempt number
+
         Alert.alert(
           'Correo reenviado',
           'Te hemos enviado un nuevo enlace de verificación.',
@@ -190,10 +237,17 @@ export const EmailVerificationPendingScreen: React.FC = () => {
         </View>
 
         {/* Status Indicator */}
-        {pollingCount > 0 && (
+        {isPolling && !verificationDetected && (
           <View style={styles.statusContainer}>
             <ActivityIndicator size="small" color="#007AFF" />
             <Text style={styles.statusText}>Verificando automáticamente...</Text>
+          </View>
+        )}
+
+        {verificationDetected && (
+          <View style={styles.verifiedContainer}>
+            <Text style={styles.verifiedText}>✅ ¡Verificación exitosa!</Text>
+            <Text style={styles.verifiedSubtext}>Haz clic en "Iniciar Sesión" para continuar</Text>
           </View>
         )}
 
@@ -324,6 +378,27 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: '#1E40AF',
+  },
+  verifiedContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  verifiedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#047857',
+    marginBottom: 4,
+  },
+  verifiedSubtext: {
+    fontSize: 14,
+    color: '#059669',
+    textAlign: 'center',
   },
   actionsContainer: {
     marginBottom: 24,
