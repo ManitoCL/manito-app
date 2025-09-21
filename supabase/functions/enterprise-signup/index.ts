@@ -363,7 +363,7 @@ serve(async (req) => {
           email_domain: email.split('@')[1],
           user_type: userType,
           source: 'enterprise_signup_resend',
-        })
+        });
 
         return new Response(
           JSON.stringify({
@@ -592,7 +592,7 @@ serve(async (req) => {
       user_type: userType,
       email_domain: user.email?.split('@')[1],
       source: 'enterprise_signup_edge_function',
-    }, user.id)
+    }, user.id);
 
     return new Response(
       JSON.stringify({
