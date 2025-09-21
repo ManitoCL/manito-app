@@ -83,7 +83,8 @@
     "extra": {
       "eas": {
         "projectId": "40fe168f-16ee-47d9-95ab-4d21f2733ff8"
-      }
+      },
+      "mixpanelToken": "64d90ec841ec72a877057a429167e5a3"
     }
   }
 }
