@@ -1,12 +1,19 @@
 /**
  * PHASE 2: Single Enterprise Auth Hook (Meta/Instagram Pattern)
  * Replaces all complex auth hooks with one minimal, reliable hook
- * Features device-agnostic verification polling
+ * Features device-agnostic verification polling + client-side profile completion
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../services/supabase';
 import type { User, Session } from '@supabase/supabase-js';
+import {
+  calculateProfileCompletion,
+  getProfileCompletionStatus,
+  getMissingProfileFields,
+  meetsMinimumCompletion,
+  getNextRecommendedAction
+} from '../utils/profileCompletion';
 
 interface Profile {
   id: string;
@@ -28,6 +35,8 @@ interface EnterpriseAuthState {
   user: User | null;
   profile: Profile | null;
   error: string | null;
+  // Verification status for device-agnostic flow
+  verificationDetected?: boolean;
 }
 
 type AuthStatus = 'unauthenticated' | 'authenticated_pending_profile' | 'authenticated_ready';
@@ -40,10 +49,26 @@ interface UseEnterpriseAuthResult extends EnterpriseAuthState {
   needsOnboarding: boolean;
   isProvider: boolean;
 
+  // Profile completion properties (client-side calculation)
+  profileCompletionPercentage: number;
+  profileCompletionStatus: {
+    status: 'excellent' | 'good' | 'moderate' | 'incomplete';
+    message: string;
+    color: string;
+    description: string;
+  };
+  isProfileComplete: boolean;
+  missingProfileFields: string[];
+  nextRecommendedAction: {
+    action: string;
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+  };
+
   // Actions
   refreshAuth: () => Promise<void>;
   signOut: () => Promise<void>;
-  startVerificationPolling: () => void;
+  startVerificationPolling: (email: string) => void;
   stopVerificationPolling: () => void;
 }
 
@@ -70,6 +95,7 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
     user: null,
     profile: null,
     error: null,
+    verificationDetected: false,
   });
 
   // Polling state
@@ -172,28 +198,122 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
 
   /**
    * ENTERPRISE: Device-agnostic verification polling
+   * SECURE APPROACH: Check auth.users table via database function
+   * Uses SECURITY DEFINER function to access Supabase auth schema
+   */
+  const checkVerificationStatus = useCallback(async (email: string) => {
+    try {
+      if (!email || typeof email !== 'string') {
+        console.error('❌ Enterprise: Invalid email provided for verification check');
+        return { verified: false, error: 'Invalid email provided' };
+      }
+
+      console.log('🔍 Enterprise: Checking verification status for:', email);
+
+      // CRITICAL FIX: Use database function to check auth.users table
+      // This is where email_confirmed_at actually gets set by Supabase Auth
+      const { data: verificationData, error: verificationError } = await supabase
+        .rpc('check_email_verification_status', { email_param: email.toLowerCase().trim() });
+
+      if (verificationError) {
+        console.error('❌ Enterprise: Auth verification query error:', verificationError);
+        return { verified: false, error: verificationError.message };
+      }
+
+      if (!verificationData || verificationData.length === 0) {
+        console.log('❌ Enterprise: No verification data returned');
+        return { verified: false, error: 'No verification data' };
+      }
+
+      const result = verificationData[0];
+      console.log('🔍 Enterprise: Verification result:', result);
+
+      // Debug: Get detailed info about user in both tables
+      const { data: debugData, error: debugError } = await supabase
+        .rpc('debug_auth_user_info', { email_param: email.toLowerCase().trim() });
+
+      if (!debugError && debugData) {
+        console.log('🐛 Enterprise: Debug info:', debugData);
+      }
+
+      if (result.is_verified) {
+        console.log('✅ Enterprise: Email verification detected in auth.users!', {
+          email_confirmed_at: result.email_confirmed_at,
+          user_id: result.user_id
+        });
+        return { verified: true, needsSignIn: true };
+      }
+
+      console.log('📧 Enterprise: Email still not verified in auth.users');
+      return { verified: false, needsVerification: true };
+
+    } catch (error) {
+      console.error('❌ Enterprise: Verification check failed:', error);
+
+      // Fallback: Try sign-in attempt method
+      console.log('🔄 Enterprise: Falling back to sign-in attempt method...');
+      try {
+        // This approach tests if email is verified by attempting sign-in
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: email.toLowerCase().trim(),
+          password: 'test-verification-only', // This will fail if not verified
+        });
+
+        if (signInError) {
+          if (signInError.message?.includes('Email not confirmed')) {
+            console.log('📧 Enterprise: Fallback confirms email not verified');
+            return { verified: false, needsVerification: true };
+          } else if (signInError.message?.includes('Invalid login credentials')) {
+            // This means email is verified but password is wrong - which is what we expect
+            console.log('✅ Enterprise: Fallback detected email is verified (wrong password expected)');
+            return { verified: true, needsSignIn: true };
+          }
+        }
+
+        // If sign-in actually succeeds, user is verified
+        if (signInData.user && signInData.user.email_confirmed_at) {
+          console.log('✅ Enterprise: Fallback confirmed verification via successful sign-in');
+          // Sign out immediately since this was just a test
+          await supabase.auth.signOut();
+          return { verified: true, needsSignIn: true };
+        }
+
+        return { verified: false, needsVerification: true };
+
+      } catch (fallbackError) {
+        console.error('❌ Enterprise: Fallback verification also failed:', fallbackError);
+        return { verified: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    }
+  }, []);
+
+  /**
+   * ENTERPRISE: Device-agnostic verification polling
    * Meta/Instagram pattern: Check verification status periodically
    */
-  const pollVerificationStatus = useCallback(async () => {
+  const pollVerificationStatus = useCallback(async (email: string) => {
     try {
       console.log(`🔄 Enterprise: Polling verification (attempt ${pollingAttemptRef.current + 1})`);
 
-      const { data: { user: currentUser }, error } = await supabase.auth.getUser();
+      const verificationResult = await checkVerificationStatus(email);
 
-      if (error || !currentUser) {
-        console.log('❌ Enterprise: No user during polling, stopping');
-        stopVerificationPolling();
-        return;
-      }
-
-      // Check if email is now verified
-      if (currentUser.email_confirmed_at) {
+      if (verificationResult.verified) {
         console.log('✅ Enterprise: Email verification detected!');
         stopVerificationPolling();
 
-        // Refresh full auth state
-        await refreshAuth();
+        // Update state to trigger UI reaction
+        setState(prev => ({
+          ...prev,
+          verificationDetected: true,
+        }));
+
         return;
+      }
+
+      if (verificationResult.error && !verificationResult.needsVerification) {
+        console.error('❌ Enterprise: Verification polling failed:', verificationResult.error);
+        stopVerificationPolling();
+        return { verified: false, error: verificationResult.error };
       }
 
       // Continue polling with exponential backoff
@@ -202,7 +322,7 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
       if (pollingAttemptRef.current >= POLLING_CONFIG.maxAttempts) {
         console.log('⏰ Enterprise: Polling timeout reached');
         stopVerificationPolling();
-        return;
+        return { verified: false, timeout: true };
       }
 
       // Increase polling interval (exponential backoff)
@@ -212,20 +332,23 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
       );
 
       // Schedule next poll
-      pollingRef.current = setTimeout(pollVerificationStatus, pollingIntervalRef.current);
+      pollingRef.current = setTimeout(() => pollVerificationStatus(email), pollingIntervalRef.current);
+
+      return { verified: false, polling: true };
 
     } catch (error) {
       console.error('❌ Enterprise: Polling error:', error);
       stopVerificationPolling();
+      return { verified: false, error: error instanceof Error ? error.message : 'Polling failed' };
     }
-  }, [refreshAuth]);
+  }, [checkVerificationStatus]);
 
   /**
    * ENTERPRISE: Start verification polling
    * Use after user submits signup form
    */
-  const startVerificationPolling = useCallback(() => {
-    console.log('🚀 Enterprise: Starting verification polling');
+  const startVerificationPolling = useCallback((email: string) => {
+    console.log('🚀 Enterprise: Starting verification polling for:', email);
 
     // Reset polling state
     pollingAttemptRef.current = 0;
@@ -237,7 +360,7 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
     }
 
     // Start polling
-    pollingRef.current = setTimeout(pollVerificationStatus, POLLING_CONFIG.initialInterval);
+    pollingRef.current = setTimeout(() => pollVerificationStatus(email), POLLING_CONFIG.initialInterval);
   }, [pollVerificationStatus]);
 
   /**
@@ -315,6 +438,7 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
             user: null,
             profile: null,
             error: null,
+            verificationDetected: false,
           });
         }
       }
@@ -324,7 +448,7 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
       subscription.unsubscribe();
       stopVerificationPolling();
     };
-  }, [refreshAuth, stopVerificationPolling]);
+  }, []); // FIXED: Empty dependency array - this should only run once on mount
 
   // ENTERPRISE: Computed properties (no redundant state)
   const authStatus: AuthStatus = !state.hasSession
@@ -338,6 +462,75 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
   const needsOnboarding = state.profile ? !state.profile.onboarding_completed : false;
   const isProvider = state.profile?.user_type === 'provider';
 
+  // ENTERPRISE: Client-side profile completion calculation (replaces database triggers)
+  const profileCompletionPercentage = useMemo(() => {
+    if (!state.profile) return 0;
+
+    // Convert Profile interface to format expected by calculateProfileCompletion
+    const profileData = {
+      full_name: state.profile.full_name,
+      email_verified_at: state.profile.email_verified_at,
+      phone_verified_at: null, // Will be updated when phone verification is implemented
+      avatar_url: null, // Will be updated when avatar upload is implemented
+      rut_verified: false, // Will be updated when RUT verification is implemented
+      date_of_birth: null, // Will be updated when date of birth is collected
+      whatsapp_number: null, // Will be updated when WhatsApp is collected
+      user_type: state.profile.user_type,
+    };
+
+    // For now, we don't have address or provider profile data in this hook
+    // This will be enhanced when those features are implemented
+    return calculateProfileCompletion(profileData, null, null);
+  }, [state.profile]);
+
+  const profileCompletionStatus = useMemo(() => {
+    return getProfileCompletionStatus(profileCompletionPercentage);
+  }, [profileCompletionPercentage]);
+
+  const isProfileComplete = useMemo(() => {
+    return meetsMinimumCompletion(profileCompletionPercentage);
+  }, [profileCompletionPercentage]);
+
+  const missingProfileFields = useMemo(() => {
+    if (!state.profile) return [];
+
+    const profileData = {
+      full_name: state.profile.full_name,
+      email_verified_at: state.profile.email_verified_at,
+      phone_verified_at: null,
+      avatar_url: null,
+      rut_verified: false,
+      date_of_birth: null,
+      whatsapp_number: null,
+      user_type: state.profile.user_type,
+    };
+
+    return getMissingProfileFields(profileData, null, null);
+  }, [state.profile]);
+
+  const nextRecommendedAction = useMemo(() => {
+    if (!state.profile) {
+      return {
+        action: 'Completar perfil',
+        description: 'Completa tu información básica para comenzar',
+        priority: 'high' as const
+      };
+    }
+
+    const profileData = {
+      full_name: state.profile.full_name,
+      email_verified_at: state.profile.email_verified_at,
+      phone_verified_at: null,
+      avatar_url: null,
+      rut_verified: false,
+      date_of_birth: null,
+      whatsapp_number: null,
+      user_type: state.profile.user_type,
+    };
+
+    return getNextRecommendedAction(profileData, null, null);
+  }, [state.profile]);
+
   return {
     // Core state
     ...state,
@@ -349,11 +542,55 @@ export function useEnterpriseAuth(): UseEnterpriseAuthResult {
     needsOnboarding,
     isProvider,
 
+    // Profile completion properties (client-side calculation)
+    profileCompletionPercentage,
+    profileCompletionStatus,
+    isProfileComplete,
+    missingProfileFields,
+    nextRecommendedAction,
+
     // Actions
     refreshAuth,
     signOut,
     startVerificationPolling,
     stopVerificationPolling,
+
+    // Debug functions
+    debugUserCreation: async (email: string) => {
+      try {
+        const { data, error } = await supabase
+          .rpc('debug_user_creation_status', { email_param: email });
+
+        if (error) {
+          console.error('❌ Debug user creation failed:', error);
+          return { error: error.message };
+        }
+
+        console.log('🐛 Debug user creation result:', data);
+        return { data };
+      } catch (error) {
+        console.error('❌ Debug user creation exception:', error);
+        return { error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    },
+
+    debugTokenTracking: async (email: string) => {
+      try {
+        const { data, error } = await supabase
+          .rpc('debug_token_tracking', { email_param: email });
+
+        if (error) {
+          console.error('❌ Debug token tracking failed:', error);
+          return { error: error.message };
+        }
+
+        console.log('🐛 Debug token tracking result:', data);
+        return { data };
+      } catch (error) {
+        console.error('❌ Debug token tracking exception:', error);
+        return { error: error instanceof Error ? error.message : 'Unknown error' };
+      }
+    },
   };
 }
 
@@ -377,60 +614,77 @@ export function useAuth() {
 // Auth actions for forms and interactions
 export function useAuthActions() {
   const enterpriseAuth = useEnterpriseAuth();
+
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      if (!email || typeof email !== 'string') {
+        throw new Error('Email is required and must be a valid string');
+      }
+      if (!password || typeof password !== 'string') {
+        throw new Error('Password is required and must be a valid string');
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      });
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Sign in failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Sign in failed' };
+    }
+  }, []);
+
+  const signUp = useCallback(async (userData: any) => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/enterprise-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify(userData),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Signup failed');
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('❌ Sign up failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Sign up failed' };
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    // FIXED: Don't call refreshAuth() - this causes infinite loops
+    // Error clearing should be handled differently
+    console.log('🔄 Clear error called - avoiding infinite loop');
+  }, []);
+
+  const resendVerificationEmail = useCallback(async (email: string) => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/enterprise-signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ email, resend: true }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Resend failed');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Resend failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Resend failed' };
+    }
+  }, []);
+
   return {
-    signIn: async (email: string, password: string) => {
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.toLowerCase().trim(),
-          password,
-        });
-        if (error) throw error;
-        return { success: true, data };
-      } catch (error) {
-        console.error('❌ Sign in failed:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Sign in failed' };
-      }
-    },
-    signUp: async (userData: any) => {
-      try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/enterprise-signup`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify(userData),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Signup failed');
-        return { success: true, data: result };
-      } catch (error) {
-        console.error('❌ Sign up failed:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Sign up failed' };
-      }
-    },
-    clearError: () => {
-      // Error clearing handled by main hook
-      enterpriseAuth.refreshAuth();
-    },
-    resendVerificationEmail: async (email: string) => {
-      try {
-        const response = await fetch(`${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/enterprise-signup`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ email, resend: true }),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || 'Resend failed');
-        return { success: true };
-      } catch (error) {
-        console.error('❌ Resend failed:', error);
-        return { success: false, error: error instanceof Error ? error.message : 'Resend failed' };
-      }
-    },
+    signIn,
+    signUp,
+    clearError,
+    resendVerificationEmail,
   };
 }
 
@@ -445,7 +699,7 @@ export function useAuthStatus() {
   };
 }
 
-// Profile data access
+// Profile data access with completion information
 export function useProfileData() {
   const enterpriseAuth = useEnterpriseAuth();
   return {
@@ -453,6 +707,13 @@ export function useProfileData() {
     isLoading: enterpriseAuth.isLoading,
     error: enterpriseAuth.error,
     refreshProfile: enterpriseAuth.refreshAuth,
+
+    // Profile completion data (client-side calculation)
+    profileCompletionPercentage: enterpriseAuth.profileCompletionPercentage,
+    profileCompletionStatus: enterpriseAuth.profileCompletionStatus,
+    isProfileComplete: enterpriseAuth.isProfileComplete,
+    missingProfileFields: enterpriseAuth.missingProfileFields,
+    nextRecommendedAction: enterpriseAuth.nextRecommendedAction,
   };
 }
 
