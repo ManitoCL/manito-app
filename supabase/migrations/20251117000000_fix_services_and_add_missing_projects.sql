@@ -5,22 +5,35 @@
 -- 1. FIX TERMINOLOGY: Electrodomésticos → Línea Blanca
 -- ============================================================================
 
--- FIRST: Update all foreign key references in project_services
+-- FIRST: Insert the new service category
+INSERT INTO service_categories (id, name, icon, description, avg_price_min, avg_price_max, urgency_levels, color, is_active, sort_order)
+SELECT
+  'linea_blanca' as id,
+  'Línea Blanca' as name,
+  icon,
+  'Reparación e instalación de línea blanca (lavadora, refrigerador, lavavajillas, secadora)' as description,
+  avg_price_min,
+  avg_price_max,
+  urgency_levels,
+  color,
+  is_active,
+  sort_order
+FROM service_categories
+WHERE id = 'electrodomesticos'
+ON CONFLICT (id) DO NOTHING;
+
+-- SECOND: Update all foreign key references in project_services
 UPDATE project_services
 SET service_id = 'linea_blanca'
 WHERE service_id = 'electrodomesticos';
 
--- SECOND: Update all foreign key references in project_types
+-- THIRD: Update all foreign key references in project_types
 UPDATE project_types
 SET category = 'linea_blanca'
 WHERE category = 'electrodomesticos';
 
--- THIRD: Now we can safely update the service category itself
-UPDATE service_categories
-SET
-  id = 'linea_blanca',
-  name = 'Línea Blanca',
-  description = 'Reparación e instalación de línea blanca (lavadora, refrigerador, lavavajillas, secadora)'
+-- FOURTH: Delete the old service category (now safe since all FKs updated)
+DELETE FROM service_categories
 WHERE id = 'electrodomesticos';
 
 -- ============================================================================
